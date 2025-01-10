@@ -107,6 +107,11 @@ async function run() {
       const result = await plantsCollection.insertOne(plant);
       res.send(result);
     })
+    // get all plants data from db
+    app.post("/plants", verifyToken, async (req, res) => {
+      const result = await plantsCollection.find().toArray();
+      res.send(result);
+    })
 
 
 
