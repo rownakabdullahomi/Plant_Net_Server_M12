@@ -55,20 +55,24 @@ async function run() {
   try {
     const usersCollection = client.db("plantNetDB").collection("users");
     const plantsCollection = client.db("plantNetDB").collection("plants");
+    const ordersCollection = client.db("plantNetDB").collection("orders");
 
     // save or update user in db
     app.post("/users/:email", async (req, res) => {
       const email = req.params.email;
       const user = req.body;
       const query = { email };
+      // console.log(user);
 
       // check if user exists in db
       const isExist = await usersCollection.findOne(query)
+      // console.log(isExist);
       if (isExist) {
         return res.send(isExist);
       }
 
       const result = await usersCollection.insertOne({ ...user, role: "customer", timestamp: Date.now() });
+      // console.log(result);
       res.send(result);
     })
 
@@ -108,11 +112,28 @@ async function run() {
       res.send(result);
     })
     // get all plants data from db
-    app.post("/plants", verifyToken, async (req, res) => {
-      const result = await plantsCollection.find().toArray();
+    app.get("/plants", async (req, res) => {
+      const result = await plantsCollection.find().limit(20).toArray();
       res.send(result);
     })
 
+    // get a plant by id
+    app.get("/plants/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = {_id : new ObjectId(id)};
+      const result = await plantsCollection.findOne(query);
+      res.send(result);
+    })
+
+    // Save order data in db
+    app.post("/order", verifyToken, async (req, res) => {
+      const orderInfo = req.body;
+      const result = await ordersCollection.insertOne(orderInfo);
+      res.send(result);
+    })
+
+    // manage plant quantity
+    app.patch("", (req, res) => {})
 
 
 
