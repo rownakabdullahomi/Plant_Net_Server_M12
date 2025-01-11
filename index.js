@@ -57,27 +57,9 @@ async function run() {
     const plantsCollection = client.db("plantNetDB").collection("plants");
     const ordersCollection = client.db("plantNetDB").collection("orders");
 
-    // save or update user in db
-    app.post("/users/:email", async (req, res) => {
-      const email = req.params.email;
-      const user = req.body;
-      const query = { email };
-      // console.log(user);
 
-      // check if user exists in db
-      const isExist = await usersCollection.findOne(query)
-      // console.log(isExist);
-      if (isExist) {
-        return res.send(isExist);
-      }
-
-      const result = await usersCollection.insertOne({ ...user, role: "customer", timestamp: Date.now() });
-      // console.log(result);
-      res.send(result);
-    })
-
-    // Generate jwt token
-    app.post('/jwt', async (req, res) => {
+     // Generate jwt token
+     app.post('/jwt', async (req, res) => {
       const email = req.body
       const token = jwt.sign(email, process.env.ACCESS_TOKEN_SECRET, {
         expiresIn: '365d',
@@ -105,6 +87,30 @@ async function run() {
       }
     })
 
+
+
+
+    // save or update user in db
+    app.post("/users/:email", async (req, res) => {
+      const email = req.params.email;
+      const user = req.body;
+      const query = { email };
+      // console.log(user);
+
+      // check if user exists in db
+      const isExist = await usersCollection.findOne(query);
+      // console.log(isExist);
+      if (isExist) {
+        return res.send(isExist);
+      }
+
+      const result = await usersCollection.insertOne({ ...user, role: "customer", timestamp: Date.now() });
+      // console.log(result);
+      res.send(result);
+    })
+
+   
+
     // save a plant data in db
     app.post("/plants", verifyToken, async (req, res) => {
       const plant = req.body;
@@ -125,6 +131,18 @@ async function run() {
       res.send(result);
     })
 
+    // manage plant quantity
+    app.patch("/plants/quantity/:id", verifyToken, async(req, res) => {
+      const id = req.params.id;
+      const {quantityToUpdate} = req.body;
+      const query = {_id : new ObjectId(id)}
+      let updatedDoc = {
+        $inc: {quantity: -quantityToUpdate}
+      }
+      const result = await plantsCollection.updateOne(query, updatedDoc);
+      res.send(result)
+    })
+
     // Save order data in db
     app.post("/order", verifyToken, async (req, res) => {
       const orderInfo = req.body;
@@ -132,8 +150,40 @@ async function run() {
       res.send(result);
     })
 
-    // manage plant quantity
-    app.patch("", (req, res) => {})
+    // get all customer orders for a specific customer
+    app.get("/customer-orders/:email", async (req, res) => {
+      const email = req.params.email;
+      const query = {"customer.email" : email}
+      const result = await ordersCollection.aggregate([
+        {
+          $match: query,
+        },
+        {
+          $addFields: {
+            plantId: {$toObjectId: "$plantId"}
+          }
+        },
+        {
+          $lookup:{
+            from: "plants",
+            localField: "plantId",
+            foreignField: "_id",
+            as: "plants",
+          }
+        },
+        {
+          $unwind: "$plants"
+        },
+        {
+          $addFields: {
+            name: "$plants.name",
+            image: "$plants.image",
+            category: "$plants.category"
+          }
+        }
+      ]).toArray();
+      res.send(result);
+    })
 
 
 
