@@ -107,12 +107,38 @@ async function run() {
       res.send(result);
     })
 
+    // get all user data
+    app.get("/all-users/:email", verifyToken, async (req, res) => {
+      const email = req.params.email;
+      const query = {email: {$ne: email}};
+      const result = await usersCollection.find(query).toArray();
+      res.send(result);
+    })
+
     // get user role
     app.get('/users/role/:email', async (req, res) => {
       const email = req.params.email
       const result = await usersCollection.findOne({ email })
       res.send({ role: result?.role });
     })
+
+    // update a user role & status
+    app.patch(
+      '/user/role/:email',
+      verifyToken,
+      
+      async (req, res) => {
+        const email = req.params.email
+        const { role } = req.body
+        const filter = { email }
+        const updateDoc = {
+          $set: { role, status: 'Verified' },
+        }
+        const result = await usersCollection.updateOne(filter, updateDoc)
+        res.send(result)
+      }
+    )
+
 
     // manage user status and role
     app.patch("/users/:email", verifyToken, async (req, res) => {
