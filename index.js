@@ -58,8 +58,8 @@ async function run() {
     const ordersCollection = client.db("plantNetDB").collection("orders");
 
 
-     // Generate jwt token
-     app.post('/jwt', async (req, res) => {
+    // Generate jwt token
+    app.post('/jwt', async (req, res) => {
       const email = req.body
       const token = jwt.sign(email, process.env.ACCESS_TOKEN_SECRET, {
         expiresIn: '365d',
@@ -109,7 +109,7 @@ async function run() {
       res.send(result);
     })
 
-   
+
 
     // save a plant data in db
     app.post("/plants", verifyToken, async (req, res) => {
@@ -126,19 +126,28 @@ async function run() {
     // get a plant by id
     app.get("/plants/:id", async (req, res) => {
       const id = req.params.id;
-      const query = {_id : new ObjectId(id)};
+      const query = { _id: new ObjectId(id) };
       const result = await plantsCollection.findOne(query);
       res.send(result);
     })
 
     // manage plant quantity
-    app.patch("/plants/quantity/:id", verifyToken, async(req, res) => {
+    app.patch("/plants/quantity/:id", verifyToken, async (req, res) => {
       const id = req.params.id;
-      const {quantityToUpdate} = req.body;
-      const query = {_id : new ObjectId(id)}
+      const { quantityToUpdate, status } = req.body;
+      const query = { _id: new ObjectId(id) }
+
+      
       let updatedDoc = {
-        $inc: {quantity: -quantityToUpdate}
+        $inc: { quantity: -quantityToUpdate }
       }
+
+      if (status === 'increase') {
+        updatedDoc = {
+          $inc: { quantity: quantityToUpdate },
+        }
+      }
+
       const result = await plantsCollection.updateOne(query, updatedDoc);
       res.send(result)
     })
@@ -150,21 +159,21 @@ async function run() {
       res.send(result);
     })
 
-    // get all customer orders for a specific customer
+    // get all orders for a specific customer
     app.get("/customer-orders/:email", async (req, res) => {
       const email = req.params.email;
-      const query = {"customer.email" : email}
+      const query = { "customer.email": email }
       const result = await ordersCollection.aggregate([
         {
           $match: query,
         },
         {
           $addFields: {
-            plantId: {$toObjectId: "$plantId"}
+            plantId: { $toObjectId: "$plantId" }
           }
         },
         {
-          $lookup:{
+          $lookup: {
             from: "plants",
             localField: "plantId",
             foreignField: "_id",
@@ -180,8 +189,24 @@ async function run() {
             image: "$plants.image",
             category: "$plants.category"
           }
+        },
+        {
+          $project: {
+            plants: 0
+          }
         }
       ]).toArray();
+      res.send(result);
+    })
+
+    // cancel an order
+    app.delete("/orders/:id", verifyToken, async (req, res) => {
+      const id = req.params.id;
+      console.log(id);
+      const query = { _id: new ObjectId(id) };
+      const order = await ordersCollection.findOne(query);
+      if (order.status === "Delivered") return res.status(409).send("Can not cancel once the status is delivered !");
+      const result = await ordersCollection.deleteOne(query);
       res.send(result);
     })
 
