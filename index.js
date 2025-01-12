@@ -57,6 +57,24 @@ async function run() {
     const plantsCollection = client.db("plantNetDB").collection("plants");
     const ordersCollection = client.db("plantNetDB").collection("orders");
 
+    // verify admin middleware
+    const verifyAdmin = async (req, res, next) => {
+      const email = req.user?.email;
+      const query = { email };
+      const result = await usersCollection.findOne(query);
+      if (!result || result?.role !== "admin") return res.status(403).send({ message: "Forbidden access ! Seller only actions" });
+      next();
+    }
+
+    // verify seller middleware
+    const verifySeller = async (req, res, next) => {
+      const email = req.user?.email;
+      const query = { email };
+      const result = await usersCollection.findOne(query);
+      if (!result || result?.role !== "seller") return res.status(403).send({ message: "Forbidden access ! Seller only actions" });
+      next();
+    }
+
 
     // Generate jwt token
     app.post('/jwt', async (req, res) => {
@@ -108,9 +126,9 @@ async function run() {
     })
 
     // get all user data
-    app.get("/all-users/:email", verifyToken, async (req, res) => {
+    app.get("/all-users/:email", verifyToken, verifyAdmin, async (req, res) => {
       const email = req.params.email;
-      const query = {email: {$ne: email}};
+      const query = { email: { $ne: email } };
       const result = await usersCollection.find(query).toArray();
       res.send(result);
     })
@@ -126,7 +144,7 @@ async function run() {
     app.patch(
       '/user/role/:email',
       verifyToken,
-      
+
       async (req, res) => {
         const email = req.params.email
         const { role } = req.body
@@ -149,7 +167,7 @@ async function run() {
       if (!user || user?.status === "Requested") return res.status(400).send("You have already requested, please wait...");
 
       const updatedDoc = {
-        $set:{
+        $set: {
           status: "Requested"
         }
       }
@@ -161,7 +179,7 @@ async function run() {
 
 
     // save a plant data in db
-    app.post("/plants", verifyToken, async (req, res) => {
+    app.post("/plants", verifyToken, verifySeller, async (req, res) => {
       const plant = req.body;
       const result = await plantsCollection.insertOne(plant);
       res.send(result);
