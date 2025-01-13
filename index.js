@@ -3,6 +3,7 @@ const express = require('express')
 const cors = require('cors')
 const cookieParser = require('cookie-parser')
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb')
+const nodemailer = require("nodemailer");
 const jwt = require('jsonwebtoken')
 const morgan = require('morgan')
 
@@ -33,6 +34,46 @@ const verifyToken = async (req, res, next) => {
     }
     req.user = decoded
     next()
+  })
+}
+
+
+// send email using nodemailer
+const sendEmail = (emailAddress, emailData) => {
+  // create transporter
+  const transporter = nodemailer.createTransport({
+    host: 'smtp.gmail.com',
+    port: 587,
+    secure: false, // true for port 465, false for other ports
+    auth: {
+      user: process.env.NODEMAILER_USER,
+      pass: process.env.NODEMAILER_PASS,
+    },
+  })
+  // Verify connection
+  transporter.verify((error, success) => {
+    if (error) {
+      console.log(error)
+    } else {
+      console.log('Transporter is ready to emails.', success)
+    }
+  })
+  // transporter.sendMail()
+  const mailBody = {
+    from: process.env.NODEMAILER_USER, // sender address
+    to: emailAddress, // list of receivers
+    subject: emailData?.subject, // Subject line
+    html: `<p>${emailData?.message}</p>`, // html body
+  }
+
+  // send email
+  transporter.sendMail(mailBody, (error, info) => {
+    if (error) {
+      console.log(error)
+    } else {
+      // console.log(info)
+      console.log('Email Sent: ' + info?.response)
+    }
   })
 }
 
@@ -239,6 +280,22 @@ async function run() {
     app.post("/order", verifyToken, async (req, res) => {
       const orderInfo = req.body;
       const result = await ordersCollection.insertOne(orderInfo);
+
+      // Send Email
+      if (result?.insertedId) {
+        // To Customer
+        sendEmail(orderInfo?.customer?.email, {
+          subject: 'Order Successful',
+          message: `You've placed an order successfully. Transaction Id: ${result?.insertedId}`,
+        })
+
+        // To Seller
+        sendEmail(orderInfo?.seller, {
+          subject: 'Hurray!, You have an order to process.',
+          message: `Get the plants ready for ${orderInfo?.customer?.name}`,
+        })
+      }
+
       res.send(result);
     })
 
