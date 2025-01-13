@@ -282,6 +282,64 @@ async function run() {
       res.send(result);
     })
 
+    // get all orders for a specific seller
+    app.get(
+      '/seller-orders/:email',
+      verifyToken,
+      verifySeller,
+      async (req, res) => {
+        const email = req.params.email
+        const result = await ordersCollection
+          .aggregate([
+            {
+              $match: { seller: email }, //Match specific customers data only by email
+            },
+            {
+              $addFields: {
+                plantId: { $toObjectId: '$plantId' }, //convert plantId string field to objectId field
+              },
+            },
+            {
+              $lookup: {
+                // go to a different collection and look for data
+                from: 'plants', // collection name
+                localField: 'plantId', // local data that you want to match
+                foreignField: '_id', // foreign field name of that same data
+                as: 'plants', // return the data as plants array (array naming)
+              },
+            },
+            { $unwind: '$plants' }, // unwind lookup result, return without array
+            {
+              $addFields: {
+                // add these fields in order object
+                name: '$plants.name',
+              },
+            },
+            {
+              // remove plants object property from order object
+              $project: {
+                plants: 0,
+              },
+            },
+          ])
+          .toArray()
+
+        res.send(result)
+      }
+    )
+
+     // update a order status
+     app.patch('/orders/:id', verifyToken, verifySeller, async (req, res) => {
+      const id = req.params.id
+      const { status } = req.body
+      const filter = { _id: new ObjectId(id) }
+      const updateDoc = {
+        $set: { status },
+      }
+      const result = await ordersCollection.updateOne(filter, updateDoc)
+      res.send(result)
+    })
+
     // cancel an order
     app.delete("/orders/:id", verifyToken, async (req, res) => {
       const id = req.params.id;
